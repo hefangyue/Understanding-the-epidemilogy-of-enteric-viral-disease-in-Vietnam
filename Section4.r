@@ -1,19 +1,9 @@
 ###4.1
 
 ##4.1.1
+
 d$is_coinf[is.na(d$is_coinf)]<-0
-plot(d$is_coinf,d$Age)
-ggplot(data=d,aes(as.factor(is_coinf),Age))+
-  geom_boxplot(alpha=0.7)
 
-
-d$water_source[which(d$Tap==TRUE)]<-'Tap'
-d$water_source[which(d$Well==TRUE)]<-'Well'
-d$water_source[which(d$Rain==TRUE)]<-'Rain'
-d$water_source[which(d$River==TRUE)]<-'River'
-d$water_source[which(d$Pond==TRUE)]<-'Pond'
-d$water_source[which(d$Bottle==TRUE)]<-'Bottle'
-d$water_source[which(d$OtherWS==TRUE)]<-'OtherWS'
 
 d$water_source<-as.factor(d$water_source)
 d$ContactDiar<-as.factor(d$ContactDiar)
@@ -29,7 +19,7 @@ d$River<-as.factor(d$River)
 d$Pond<-as.factor(d$Pond)
 d$Bottled<-as.factor(d$Bottled)
 
-##水源堆积百分比
+##tidy data for plotting
 per_water<-d%>%group_by(is_coinf,water_source)%>%summarise(count=n())%>%mutate(percent=count/sum(count))
 per_contact<-d%>%group_by(is_coinf,ContactDiar)%>%summarise(count=n())%>%mutate(percent=count/sum(count))
 per_keep<-d%>%group_by(is_coinf,KeepAnimal)%>%summarise(count=n())%>%mutate(percent=count/sum(count))
@@ -95,20 +85,12 @@ plot_grid(g1,g2,g3,g4,g5,g6,g7,g8,labels=c('(A)','(B)','(C)','(D)','(E)','(F)','
 ##4.1.2
 library(MASS)
 library(nnet)
-library(lmerTest)
 library(lme4)
-library(geepack)
-
-##查看缺失值
-sapply(d,function(x) sum(is.na(x)))
-missmap(d,main='Missing values Vs observed')
 
 
 ##multinom
 multi<-multinom(data=d,is_coinf~Age_cut+Gender+SiteRecruitment+Tap+Well+Rain+River+Pond+Bottled+ContactDiar+KillingAnimal+KeepAnimal+ EatCookRawMeat )
 summary(multi)
-# pchisq((deviance(multi)-deviance()))
-# p
 multi0<-step(multi)
 summary(multi0)
 
@@ -126,17 +108,20 @@ polr1<-polr(is_coinf~Age_cut+Gender+Tap+Well+Rain+River+Pond+Bottled+ContactDiar
 summary(polr1)
 polr0<-step(polr1,trace = 0)
 summary(polr0)
+##test
 ctable <- coef(summary(polr0))
 p_polr <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
 p_polr
+##ratio
 exp(coef(polr0))
+##CI
 confint(polr0)
 
 
 ##4.1.4
+##general a nwe variable to show whether there are coinfection
 d<-d%>%
   mutate(if_coinf=ifelse(is_coinf==0,0,1))
-
 
 mixed<-glmer(if_coinf~Age+Gender+Tap+Well+Rain+River+Pond+Bottled+ContactDiar+KeepAnimal+KillingAnimal+EatCookRawMeat+(1|SiteRecruitment),data=d,family = binomial)
 summary(mixed)
@@ -157,6 +142,7 @@ summary(mixed4)
 mixed5<-glm(if_coinf~Gender+SiteRecruitment+Age,data=d,family = binomial, nAGQ=25)
 summary(mixed5)
 
+##univariable analysis
 k<-c('Age_cut','Gender','Tap','Well','Rain','River','Pond','Bottled','ContactDiar','KeepAnimal','KillingAnimal','EatCookRawMeat')
 p_value<-matrix(c(k,rep(0,12)),2,12,byrow=T)
 for(i in k){
@@ -169,7 +155,7 @@ p_value
 ###4.2
 
 ##4.2.1
-###
+###disease sevirity VS coinfection
 diar_coinf<-d%>%group_by(is_coinf,Diar_cut)%>%summarise(count=n())%>%mutate(percent=count/sum(count))
 
 g_diar_coinf<-ggplot(diar_coinf,aes(x=is_coinf,y=percent*100,fill=as.factor(Diar_cut)))+
@@ -182,7 +168,6 @@ g_diar_coinf<-ggplot(diar_coinf,aes(x=is_coinf,y=percent*100,fill=as.factor(Diar
 
 pain_coinf<-d%>%group_by(is_coinf,AbdominalPain)%>%summarise(count=n())%>%mutate(percent=count/sum(count))
 
-
 g_pain_coinf<-ggplot(pain_coinf,aes(x=is_coinf,y=percent*100,fill=as.factor(AbdominalPain)))+
   geom_bar(stat='identity', width = 0.7)+
   labs(x = "The number of coinfection", y = "The percentage of AbdominalPain", fill = "If pain") +
@@ -190,7 +175,6 @@ g_pain_coinf<-ggplot(pain_coinf,aes(x=is_coinf,y=percent*100,fill=as.factor(Abdo
   scale_fill_manual(values=c('skyblue1','rosybrown1','#999999'))+
   theme(legend.text=element_text(size=8), legend.title=element_text(size=10),
         axis.title.x = element_text(size = 9),axis.title.y = element_text(size = 9))
-
 
 
 fever_coinf<-d%>%group_by(is_coinf,ThreeDaysFever)%>%summarise(count=n())%>%mutate(percent=count/sum(count))
@@ -206,10 +190,13 @@ g_fever_coinf<-ggplot(fever_coinf,aes(x=is_coinf,y=percent*100,fill=as.factor(Th
 ggplot(fever_coinf,aes(x=is_coinf,y=percent*100,group=as.factor(ThreeDaysFever),linetype=as.factor(ThreeDaysFever)))+
   geom_line()
 
-##together
+##get together
 plot_grid(g_diar_coinf,g_pain_coinf,g_fever_coinf,labels=c('(A)','(B)','(C)'),ncol=3,nrow=1,label_size = 10)
 
-##plot
+
+
+
+##ploteach common variable VS coinfection
 ##diar
 diar_Mastadenovirus<-d%>%group_by(Mastadenovirus,Diar_cut)%>%summarise(count=n())%>%mutate(percent=count/sum(count))
 diar_Norovirus<-d%>%group_by(Norovirus,Diar_cut)%>%summarise(count=n())%>%mutate(percent=count/sum(count))
@@ -281,9 +268,6 @@ g_pain_sap<-ggplot(pain_Sapovirus,aes(x=Sapovirus,y=percent*100,fill=as.factor(A
   scale_fill_manual(values=c('skyblue1','rosybrown1','#999999'))+
   theme(legend.text=element_text(size=8), legend.title=element_text(size=10),
         axis.title.x = element_text(size = 9),axis.title.y = element_text(size = 9))
-
-
-
 
 
 ##fever
